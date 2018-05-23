@@ -1,0 +1,15 @@
+# scala/sbt
+target
+*.class
+project/project/
+project/target/
+.cache-main
+.cache-tests
+
+# eclipse
+.classpath
+.project
+.settings
+bin
+
+
