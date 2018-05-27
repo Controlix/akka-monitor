@@ -14,7 +14,7 @@ object AkkaServiceMonitor extends App {
 
   serviceMonitor ! Start
   
-  TimeUnit.MINUTES.sleep(2L)
+  TimeUnit.SECONDS.sleep(30L)
 
   serviceMonitor ! Stop
 }

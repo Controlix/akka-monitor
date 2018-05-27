@@ -2,6 +2,7 @@ package be.ict.bogaerts.marc
 
 import akka.actor.{ Actor, Props, ActorLogging }
 import scala.concurrent.duration._
+import akka.actor.Cancellable
 
 
 object ServiceMonitor {
@@ -17,6 +18,7 @@ class ServiceMonitor(val url: String) extends Actor with ActorLogging {
   import scala.concurrent.ExecutionContext.Implicits.global
   
   log.debug("New ServiceMonitor created")
+  var scheduled: Cancellable = _
   
   override def receive = stopped
   
@@ -29,20 +31,20 @@ class ServiceMonitor(val url: String) extends Actor with ActorLogging {
     case Stop => stop
     case Ping => {
       log.info("check service ...")
-      context.system.scheduler.scheduleOnce(500 millisecond, self, Ping)
     }
     case _ => log.info("something else")
   }
 
   def stop = {
     log.info("stopped")
+    scheduled.cancel()
     context.become(stopped)
   }
   
   def start = {
     log.info("started")
     context.become(started)
-    self ! Ping
+    scheduled = context.system.scheduler.schedule(0 millisecond, 500 millisecond, self, Ping)
   }
   
   case object Ping
