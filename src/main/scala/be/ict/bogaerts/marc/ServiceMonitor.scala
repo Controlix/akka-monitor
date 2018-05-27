@@ -3,6 +3,10 @@ package be.ict.bogaerts.marc
 import akka.actor.{ Actor, Props, ActorLogging }
 import scala.concurrent.duration._
 import akka.actor.Cancellable
+import org.apache.http.impl.client.HttpClientBuilder
+import org.apache.http.HttpHost
+import org.apache.http.HttpRequest
+import org.apache.http.client.methods.HttpGet
 
 
 object ServiceMonitor {
@@ -31,6 +35,11 @@ class ServiceMonitor(val url: String) extends Actor with ActorLogging {
     case Stop => stop
     case Ping => {
       log.info("check service ...")
+      val httpClient = HttpClientBuilder.create().build()
+      val response = httpClient.execute(new HttpGet(url))
+      response.close()
+
+      log.info("service status {}", response.getStatusLine)
     }
     case _ => log.info("something else")
   }

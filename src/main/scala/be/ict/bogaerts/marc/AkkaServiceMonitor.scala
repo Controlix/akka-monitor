@@ -10,7 +10,7 @@ object AkkaServiceMonitor extends App {
 
   val system: ActorSystem = ActorSystem("monitor")
   
-  val serviceMonitor = system.actorOf(ServiceMonitor.props("http:google.com?q=akka"))
+  val serviceMonitor = system.actorOf(ServiceMonitor.props("http://google.com?q=akka"))
 
   serviceMonitor ! Start
   
