@@ -12,5 +12,6 @@ EclipseKeys.withJavadoc := true
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-actor" % akkaVersion,
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
+  "org.apache.httpcomponents" % "httpclient" % "4.5.5",
   "org.scalatest" %% "scalatest" % "3.0.5" % "test"
 )
