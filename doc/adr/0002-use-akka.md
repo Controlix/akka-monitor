@@ -6,6 +6,8 @@ Date: 2018-06-01
 
 Accepted
 
+Amplifies [3. Use Scala as programming language](0003-use-scala-as-programming-language.md)
+
 ## Context
 
 We need to be able to monitor network services separately.
