@@ -1,4 +1,4 @@
-name := "akka-quickstart-scala"
+name := "akka-service-monitor"
 
 version := "1.0"
 
