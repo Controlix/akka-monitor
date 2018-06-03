@@ -13,23 +13,17 @@ import java.util.stream.Collectors
 import org.apache.http.impl.client.CloseableHttpClient
 import spray.json.DefaultJsonProtocol
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+import org.apache.http.client.methods.RequestBuilder
 
 
 object ServiceMonitor {
-  def props(url: String): Props = Props(new ServiceMonitor(url))
+  def props(method:String, url: String): Props = Props(new ServiceMonitor(method, url))
   
   case object Start
   case object Stop
-  case class StartMonitoring(url: String)
 }
 
-trait ServiceMonitorJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
-  import ServiceMonitor._
-  
-  implicit val startMonitoringFormat = jsonFormat1(StartMonitoring)
-}
-
-class ServiceMonitor(val url: String) extends Actor with ActorLogging {
+class ServiceMonitor(val method: String, val url: String) extends Actor with ActorLogging {
   
   import ServiceMonitor._
   import scala.concurrent.ExecutionContext.Implicits.global
@@ -67,11 +61,11 @@ class ServiceMonitor(val url: String) extends Actor with ActorLogging {
     httpClient = HttpClientBuilder.create().build()
     
     context.become(started)
-    scheduled = context.system.scheduler.schedule(0 millisecond, 500 millisecond, self, Ping)
+    scheduled = context.system.scheduler.schedule(0 millisecond, 1 second, self, Ping)
   }
   
   def check = {
-      val response = httpClient.execute(new HttpGet(url))
+      val response = httpClient.execute(RequestBuilder.create(method).setUri(url).build())
       val entity = response.getEntity
       
       log.info("content is of type {} and length {}", entity.getContentType, entity.getContentLength)
