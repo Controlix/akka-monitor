@@ -10,11 +10,15 @@ import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import spray.json.DefaultJsonProtocol
 
 case class StartMonitoring(method: String, url: String)
-case class StopMonitoring(monitorName: String)
+case class StopMonitoring(id: String)
+case class MonitoringStarted(id: String)
+case class MonitoringStopped(id: String)
 
 trait ServiceMonitorJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
   implicit val startMonitoringFormat = jsonFormat2(StartMonitoring)
   implicit val stopMonitoringFormat = jsonFormat1(StopMonitoring)
+  implicit val monitoringStartedFormat = jsonFormat1(MonitoringStarted)
+  implicit val monitoringStoppedFormat = jsonFormat1(MonitoringStopped)
 }
 
 object AkkaServiceMonitorHttp extends HttpApp with ServiceMonitorJsonSupport {
@@ -33,17 +37,18 @@ object AkkaServiceMonitorHttp extends HttpApp with ServiceMonitorJsonSupport {
             log.info("got message {}", startMonitoring)
             val serviceMonitor = system.actorOf(ServiceMonitor.props(startMonitoring.method.toUpperCase(), startMonitoring.url))
             serviceMonitor ! Start
-            complete(s"Started ${serviceMonitor.path.name}")
+            complete(MonitoringStarted(serviceMonitor.path.name))
           }
         }
-//        ~ path("stop") {
-//          entity(as[StopMonitoring]) { stopMonitoring =>
-//            log.info("got message {}", stopMonitoring)
-//            val serviceMonitor = system.actorSelection(stopMonitoring.monitorName)
-//            serviceMonitor ! Stop
-//            complete("Stopped")
-//          }
-//        }
+      } ~ post {
+        path("stop") {
+          entity(as[StopMonitoring]) { stopMonitoring =>
+            log.info("got message {}", stopMonitoring)
+            val serviceMonitor = system.actorSelection(s"user/${stopMonitoring.id}")
+            serviceMonitor ! Stop
+            complete(MonitoringStopped(stopMonitoring.id))
+          }
+        }
       }
     }
 
