@@ -11,6 +11,8 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.util.stream.Collectors
 import org.apache.http.impl.client.CloseableHttpClient
+import spray.json.DefaultJsonProtocol
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 
 
 object ServiceMonitor {
@@ -18,6 +20,13 @@ object ServiceMonitor {
   
   case object Start
   case object Stop
+  case class StartMonitoring(url: String)
+}
+
+trait ServiceMonitorJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
+  import ServiceMonitor._
+  
+  implicit val startMonitoringFormat = jsonFormat1(StartMonitoring)
 }
 
 class ServiceMonitor(val url: String) extends Actor with ActorLogging {

@@ -3,7 +3,7 @@ package be.ict.bogaerts.marc
 import java.util.concurrent.TimeUnit
 import akka.actor.ActorSystem
 
-object AkkaServiceMonitor extends App {
+object AkkaServiceMonitorApp extends App {
 
   private val system: ActorSystem = ActorSystem("service-monitor")
   private val config = AkkaServiceMonitorConfig()
