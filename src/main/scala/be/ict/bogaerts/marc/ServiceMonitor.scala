@@ -1,19 +1,22 @@
 package be.ict.bogaerts.marc
 
-import akka.actor.{ Actor, Props, ActorLogging }
-import scala.concurrent.duration._
-import akka.actor.Cancellable
-import org.apache.http.impl.client.HttpClientBuilder
-import org.apache.http.HttpHost
-import org.apache.http.HttpRequest
-import org.apache.http.client.methods.HttpGet
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.stream.Collectors
-import org.apache.http.impl.client.CloseableHttpClient
-import spray.json.DefaultJsonProtocol
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
+
+import scala.concurrent.duration.DurationInt
+
 import org.apache.http.client.methods.RequestBuilder
+import org.apache.http.impl.client.CloseableHttpClient
+import org.apache.http.impl.client.HttpClientBuilder
+
+import akka.actor.Actor
+import akka.actor.ActorLogging
+import akka.actor.Cancellable
+import akka.actor.Props
+import io.micrometer.core.instrument.Metrics
+import io.micrometer.core.instrument.Tags
 
 
 object ServiceMonitor {
@@ -32,6 +35,9 @@ class ServiceMonitor(val method: String, val url: String) extends Actor with Act
   var scheduled: Cancellable = _
   var httpClient: CloseableHttpClient = _
   
+  val lastStatus = new AtomicInteger
+  Metrics.gauge("status.ok", Tags.of("method", method).and("url", url), lastStatus)
+  
   override def receive = stopped
   
   def stopped: Receive = {
@@ -45,6 +51,10 @@ class ServiceMonitor(val method: String, val url: String) extends Actor with Act
       log.info("check service ...")
       val result = check
       log.info("Got status {}", result._1)
+      result._1 match {
+        case 200 => lastStatus.set(1)
+        case _ => lastStatus.set(0)
+      }
     case _ => log.info("something else")
   }
 
@@ -53,6 +63,7 @@ class ServiceMonitor(val method: String, val url: String) extends Actor with Act
     scheduled.cancel()
     
     context.become(stopped)
+    lastStatus.set(0)
     httpClient.close()
   }
   

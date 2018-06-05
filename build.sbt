@@ -18,6 +18,7 @@ libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-http-spray-json" % akkaHttpVersion,
   "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
   "org.apache.httpcomponents" % "httpclient" % "4.5.5",
+  "io.micrometer" % "micrometer-registry-prometheus" % "1.0.4",
 
   "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
   "com.typesafe.akka" %% "akka-http-testkit" % akkaHttpVersion % "test",

@@ -18,7 +18,7 @@ class AkkaServiceMonitorService(val system: ActorSystem) {
 
   import AkkaServiceMonitorService._
   import ServiceMonitor._
-
+  
   def startMonitor(startMonitoring: StartMonitoring): MonitoringStarted = {
     val serviceMonitor = system.actorOf(ServiceMonitor.props(startMonitoring.method.toUpperCase(), startMonitoring.url))
     serviceMonitor ! Start
