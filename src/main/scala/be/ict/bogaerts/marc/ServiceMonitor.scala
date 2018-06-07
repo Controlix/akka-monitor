@@ -17,6 +17,7 @@ import akka.actor.Cancellable
 import akka.actor.Props
 import io.micrometer.core.instrument.Metrics
 import io.micrometer.core.instrument.Tags
+import org.apache.http.client.config.RequestConfig
 
 
 object ServiceMonitor {
@@ -34,6 +35,13 @@ class ServiceMonitor(val method: String, val url: String) extends Actor with Act
   log.debug("New ServiceMonitor created")
   var scheduled: Cancellable = _
   var httpClient: CloseableHttpClient = _
+  val timeout = (5 seconds).toMillis.intValue()
+  val request = RequestBuilder.create(method).setUri(url).build()
+  val config = RequestConfig.custom()
+    .setConnectionRequestTimeout(timeout)
+    .setConnectTimeout(timeout)
+    .setSocketTimeout(timeout)
+    .build()
   
   val lastStatus = new AtomicInteger
   Metrics.gauge("status.ok", Tags.of("method", method).and("url", url), lastStatus)
@@ -55,6 +63,7 @@ class ServiceMonitor(val method: String, val url: String) extends Actor with Act
         case 200 => lastStatus.set(1)
         case _ => lastStatus.set(0)
       }
+      log.info("Set last status to {}", lastStatus.get)
     case _ => log.info("something else")
   }
 
@@ -64,19 +73,22 @@ class ServiceMonitor(val method: String, val url: String) extends Actor with Act
     
     context.become(stopped)
     lastStatus.set(0)
+    log.info("Set last status to {}", lastStatus.get)
     httpClient.close()
+    context.stop(self)
   }
   
   def start = {
     log.info("started")
-    httpClient = HttpClientBuilder.create().build()
+    httpClient = HttpClientBuilder.create().setDefaultRequestConfig(config).build()
     
     context.become(started)
-    scheduled = context.system.scheduler.schedule(0 millisecond, 1 second, self, Ping)
+    scheduled = context.system.scheduler.schedule(10 milliseconds, 1 minute, self, Ping)
   }
   
   def check = {
-      val response = httpClient.execute(RequestBuilder.create(method).setUri(url).build())
+    try {
+      val response = httpClient.execute(request)
       val entity = response.getEntity
       
       log.info("content is of type {} and length {}", entity.getContentType, entity.getContentLength)
@@ -91,6 +103,9 @@ class ServiceMonitor(val method: String, val url: String) extends Actor with Act
       log.debug("result content = {}", result)
       
       (response.getStatusLine.getStatusCode, result)
+    } catch {
+      case _ => (-1, "")
+    }
   }
   
   case object Ping
