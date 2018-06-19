@@ -3,7 +3,7 @@ package be.ict.bogaerts.marc
 import akka.actor.ActorSystem
 
 object AkkaServiceMonitorService {
-  case class StartMonitoring(method: String, url: String)
+  case class StartMonitoring(id: String)
   case class StopMonitoring(id: String)
 
   case class MonitoringStarted(id: String)
@@ -20,10 +20,10 @@ class AkkaServiceMonitorService(val system: ActorSystem) {
   import ServiceMonitor._
   
   def startMonitor(startMonitoring: StartMonitoring): MonitoringStarted = {
-    val serviceMonitor = system.actorOf(ServiceMonitor.props(startMonitoring.method.toUpperCase(), startMonitoring.url))
-    serviceMonitor ! Start
+    val serviceMonitor = system.actorOf(ServiceMonitor.props(startMonitoring.id))
+    serviceMonitor ! Init
     
-    MonitoringStarted(serviceMonitor.path.name)
+    MonitoringStarted(startMonitoring.id)
   }
 
   def stopMonitor(stopMonitoring: StopMonitoring): MonitoringStopped = {

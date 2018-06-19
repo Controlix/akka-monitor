@@ -1,61 +1,68 @@
 package be.ict.bogaerts.marc
 
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import java.io.{BufferedReader, InputStreamReader}
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.stream.Collectors
 
-import scala.concurrent.duration.DurationInt
-
-import org.apache.http.client.methods.RequestBuilder
-import org.apache.http.impl.client.CloseableHttpClient
-import org.apache.http.impl.client.HttpClientBuilder
-
-import akka.actor.Actor
-import akka.actor.ActorLogging
-import akka.actor.Cancellable
-import akka.actor.Props
-import io.micrometer.core.instrument.Metrics
-import io.micrometer.core.instrument.Tags
+import akka.actor.{Actor, ActorLogging, Cancellable, Props}
+import be.ict.bogaerts.marc.AkkaServiceMonitorService.StartMonitoring
 import org.apache.http.client.config.RequestConfig
+import org.apache.http.client.methods.{HttpUriRequest, RequestBuilder}
+import org.apache.http.impl.client.{BasicResponseHandler, CloseableHttpClient, HttpClientBuilder}
+
+import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
 
 
 object ServiceMonitor {
-  def props(method:String, url: String): Props = Props(new ServiceMonitor(method, url))
-  
+  def props(id: String): Props = Props(new ServiceMonitor(id))
+
+  case object Init
   case object Start
   case object Stop
+  case class HttpRequestProperties(url: String, httpMethod: String, body: String)
 }
 
-class ServiceMonitor(val method: String, val url: String) extends Actor with ActorLogging {
-  
+class ServiceMonitor(val id: String) extends Actor with ActorLogging {
+
+  import spray.json._
+  import DefaultJsonProtocol._
   import ServiceMonitor._
+
+  implicit val httpRequestPropertiesFormat = jsonFormat3(HttpRequestProperties)
+
   import scala.concurrent.ExecutionContext.Implicits.global
   
   log.debug("New ServiceMonitor created")
   var scheduled: Cancellable = _
-  var httpClient: CloseableHttpClient = _
   val timeout = (5 seconds).toMillis.intValue()
-  val request = RequestBuilder.create(method).setUri(url).build()
   val config = RequestConfig.custom()
     .setConnectionRequestTimeout(timeout)
     .setConnectTimeout(timeout)
     .setSocketTimeout(timeout)
     .build()
-  
+  val httpClient = HttpClientBuilder.create().setDefaultRequestConfig(config).build()
+
   val lastStatus = new AtomicInteger
-  Metrics.gauge("status.ok", Tags.of("method", method).and("url", url), lastStatus)
-  
-  override def receive = stopped
-  
+ // Metrics.gauge("status.ok", Tags.of("method", method).and("url", url), lastStatus)
+  var checkRequest: HttpUriRequest = _
+
+  override def receive = uninitialized
+
+  def uninitialized: Receive = {
+    case Init => {log.info("got init")
+      init}
+    case _ => log.info("not yet initialized")
+  }
+
   def stopped: Receive = {
     case Start => start
-    case _ => log.info("something else")
+    case _ => log.info("already stopped")
   }
-  
+
   def started: Receive = {
     case Stop => stop
-    case Ping => 
+    case Ping =>
       log.info("check service ...")
       val result = check
       log.info("Got status {}", result._1)
@@ -64,31 +71,45 @@ class ServiceMonitor(val method: String, val url: String) extends Actor with Act
         case _ => lastStatus.set(0)
       }
       log.info("Set last status to {}", lastStatus.get)
-    case _ => log.info("something else")
+    case _ => log.info("already started")
+  }
+
+  def init = {
+    log.info("init...")
+    Future {
+      val str = httpClient.execute(RequestBuilder.get(s"http://localhost:8090/monitor/$id/properties").build(), new BasicResponseHandler())
+      log.info("Got {}", str)
+      str
+    } foreach { response =>
+      val properties = response.parseJson.convertTo[HttpRequestProperties]
+      log.info("Got service properties {}", properties)
+      checkRequest = RequestBuilder.create(properties.httpMethod).setUri(properties.url).build();
+
+      context.become(stopped)
+      self ! Start
+    }
   }
 
   def stop = {
-    log.info("stopped")
+    log.info("stop...")
     scheduled.cancel()
-    
+
     context.become(stopped)
     lastStatus.set(0)
     log.info("Set last status to {}", lastStatus.get)
     httpClient.close()
     context.stop(self)
   }
-  
+
   def start = {
-    log.info("started")
-    httpClient = HttpClientBuilder.create().setDefaultRequestConfig(config).build()
-    
+    log.info("start...")
     context.become(started)
     scheduled = context.system.scheduler.schedule(10 milliseconds, 1 minute, self, Ping)
   }
-  
+
   def check = {
     try {
-      val response = httpClient.execute(request)
+      val response = httpClient.execute(checkRequest)
       val entity = response.getEntity
       
       log.info("content is of type {} and length {}", entity.getContentType, entity.getContentLength)

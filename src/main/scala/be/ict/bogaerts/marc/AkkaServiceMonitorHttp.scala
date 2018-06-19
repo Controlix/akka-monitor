@@ -20,7 +20,7 @@ import io.micrometer.core.instrument.binder.jvm.JvmThreadMetrics
 import io.micrometer.core.instrument.Metrics
 
 trait ServiceMonitorJsonSupport extends SprayJsonSupport with DefaultJsonProtocol {
-  implicit val startMonitoringFormat = jsonFormat2(StartMonitoring)
+  implicit val startMonitoringFormat = jsonFormat1(StartMonitoring)
   implicit val stopMonitoringFormat = jsonFormat1(StopMonitoring)
   implicit val monitoringStartedFormat = jsonFormat1(MonitoringStarted)
   implicit val monitoringStoppedFormat = jsonFormat1(MonitoringStopped)
