@@ -4,7 +4,7 @@ Date: 2018-06-04
 
 ## Status
 
-Accepted
+Superceded by [5. Use Dropwizard Metrics](0005-use-dropwizard-metrics.md)
 
 ## Context
 

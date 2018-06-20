@@ -1,10 +1,12 @@
 package be.ict.bogaerts.marc
 
 import java.io.{BufferedReader, InputStreamReader}
-import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger}
 import java.util.stream.Collectors
 
 import akka.actor.{Actor, ActorLogging, Cancellable, Props}
+import com.codahale.metrics.health.HealthCheck.{Result, ResultBuilder}
+import com.codahale.metrics.health.{HealthCheck, SharedHealthCheckRegistries}
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.{HttpUriRequest, RequestBuilder}
 import org.apache.http.impl.client.{BasicResponseHandler, HttpClientBuilder}
@@ -46,8 +48,7 @@ class ServiceMonitor(val id: String) extends Actor with ActorLogging {
     .build()
   val httpClient = HttpClientBuilder.create().setDefaultRequestConfig(config).build()
 
-  val lastStatus = new AtomicInteger
-  // Metrics.gauge("status.ok", Tags.of("method", method).and("url", url), lastStatus)
+  val lastStatus = new AtomicBoolean()
   var checkRequest: HttpUriRequest = _
 
   override def receive = uninitialized
@@ -71,10 +72,7 @@ class ServiceMonitor(val id: String) extends Actor with ActorLogging {
       log.info("check service ...")
       val result = check
       log.info("Got status {}", result._1)
-      result._1 match {
-        case 200 => lastStatus.set(1)
-        case _ => lastStatus.set(0)
-      }
+      lastStatus.set(result._1 == 200)
       log.info("Set last status to {}", lastStatus.get)
     case _ => log.info("already started")
   }
@@ -91,6 +89,10 @@ class ServiceMonitor(val id: String) extends Actor with ActorLogging {
       val properties = response.parseJson.convertTo[HttpRequestProperties]
       log.info("Got service properties {}", properties)
       checkRequest = RequestBuilder.create(properties.httpMethod).setUri(properties.url).build();
+      SharedHealthCheckRegistries.getDefault().register(id, new HealthCheck() {
+        override def check() = if (lastStatus.get()) Result.healthy("OK") else Result.unhealthy("Not OK")
+      })
+      log.info("registered health check {}", id)
 
       context.become(stopped)
       self ! Start
@@ -102,8 +104,9 @@ class ServiceMonitor(val id: String) extends Actor with ActorLogging {
     scheduled.cancel()
 
     context.become(stopped)
-    lastStatus.set(0)
-    log.info("Set last status to {}", lastStatus.get)
+    SharedHealthCheckRegistries.getDefault().unregister(id)
+    log.info("unregistered health check {}", id)
+
     httpClient.close()
     context.stop(self)
   }
