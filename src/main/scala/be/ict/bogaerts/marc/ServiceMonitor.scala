@@ -5,12 +5,11 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.stream.Collectors
 
 import akka.actor.{Actor, ActorLogging, Cancellable, Props}
-import be.ict.bogaerts.marc.AkkaServiceMonitorService.StartMonitoring
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.{HttpUriRequest, RequestBuilder}
-import org.apache.http.impl.client.{BasicResponseHandler, CloseableHttpClient, HttpClientBuilder}
+import org.apache.http.impl.client.{BasicResponseHandler, HttpClientBuilder}
 
-import scala.concurrent.Future
+import scala.concurrent.{Future, blocking}
 import scala.concurrent.duration.DurationInt
 
 
@@ -18,9 +17,13 @@ object ServiceMonitor {
   def props(id: String): Props = Props(new ServiceMonitor(id))
 
   case object Init
+
   case object Start
+
   case object Stop
+
   case class HttpRequestProperties(url: String, httpMethod: String, body: String)
+
 }
 
 class ServiceMonitor(val id: String) extends Actor with ActorLogging {
@@ -32,7 +35,7 @@ class ServiceMonitor(val id: String) extends Actor with ActorLogging {
   implicit val httpRequestPropertiesFormat = jsonFormat3(HttpRequestProperties)
 
   import scala.concurrent.ExecutionContext.Implicits.global
-  
+
   log.debug("New ServiceMonitor created")
   var scheduled: Cancellable = _
   val timeout = (5 seconds).toMillis.intValue()
@@ -44,14 +47,16 @@ class ServiceMonitor(val id: String) extends Actor with ActorLogging {
   val httpClient = HttpClientBuilder.create().setDefaultRequestConfig(config).build()
 
   val lastStatus = new AtomicInteger
- // Metrics.gauge("status.ok", Tags.of("method", method).and("url", url), lastStatus)
+  // Metrics.gauge("status.ok", Tags.of("method", method).and("url", url), lastStatus)
   var checkRequest: HttpUriRequest = _
 
   override def receive = uninitialized
 
   def uninitialized: Receive = {
-    case Init => {log.info("got init")
-      init}
+    case Init => {
+      log.info("got init")
+      init
+    }
     case _ => log.info("not yet initialized")
   }
 
@@ -77,9 +82,11 @@ class ServiceMonitor(val id: String) extends Actor with ActorLogging {
   def init = {
     log.info("init...")
     Future {
-      val str = httpClient.execute(RequestBuilder.get(s"http://localhost:8090/monitor/$id/properties").build(), new BasicResponseHandler())
-      log.info("Got {}", str)
-      str
+      blocking {
+        val str = httpClient.execute(RequestBuilder.get(s"http://localhost:8090/monitor/$id/properties").build(), new BasicResponseHandler())
+        log.info("Got {}", str)
+        str
+      }
     } foreach { response =>
       val properties = response.parseJson.convertTo[HttpRequestProperties]
       log.info("Got service properties {}", properties)
@@ -128,6 +135,7 @@ class ServiceMonitor(val id: String) extends Actor with ActorLogging {
       case _ => (-1, "")
     }
   }
-  
+
   case object Ping
+
 }
